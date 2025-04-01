@@ -168,7 +168,8 @@ class GridMap:
             self.update_grid()
 
     def on_zoom(self, event):
-        self.recounting_warn.place(x=850,y=10)
+        pos = self.getCenterOfWindow(self.recounting_warn)
+        self.recounting_warn.place(x=pos[0], y=10)
         if event.delta > 0:
             if self.zoom_level < 10:
                 self.zoom_level *= 1.1
@@ -237,6 +238,8 @@ class GridMap:
                 pinned, color, name = data
                 if not pinned: continue
                 self.canvas.create_oval(x1+1, y1+1, x2-1, y2-1, fill=color, width=0)
+                self.scaled_off = (10 * self.zoom_level / 5)
+                self.canvas.create_oval(x1+self.scaled_off, y1+self.scaled_off, x2-self.scaled_off, y2-self.scaled_off, fill=color, width=(5 * self.zoom_level / 5), outline="white")
                 if not name is None:
                     names.append([x1,x2,y1,y2,name])
                 self.grid_state[(row,col)] = [pinned, color, name]
