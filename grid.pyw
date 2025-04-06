@@ -24,7 +24,7 @@ class GridMap:
         self.rows = 27 * self.quality
         self.cols = 48 * self.quality
         
-        # self.grid_state = {(x,y) : [visible, color, name]}
+        # self.grid_state = {(x,y) : [visible, color, name, info]}
         self.grid_state = {}
         self.zoom_level = 5
         
@@ -50,7 +50,7 @@ class GridMap:
         self.drawing_squares.place(x=10, y=30)
         
         # self.fps_warn = tk.Label(self.root, anchor=tk.CENTER, text="Low performance detected!", fg='red', bg='white', font=font.Font(family='Arial', size=18))
-        self.recounting_warn = tk.Label(self.root, anchor=tk.CENTER, text="Recounting map", fg='yellow', bg='white', font="Arial 18")
+        # self.recounting_warn = tk.Label(self.root, anchor=tk.CENTER, text="Recounting map", fg='yellow', bg='white', font="Arial 18")
         
         self.background_image = ImageTk.PhotoImage(self.shape_image.resize((int(self.cols * 10.005 * self.zoom_level), int(self.rows * 10.005 * self.zoom_level))))
         self.update_grid()
@@ -128,12 +128,22 @@ class GridMap:
 
         set_name_button = tk.Button(self.settings_panel, text="Set Name", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_name(row, col))
         set_name_button.pack(pady=3)
+        
+        info_label = tk.Label(self.settings_panel, text="Information", bg="lightgray")
+        info_label.pack(pady=3)
+        
+        self.info_input = tk.Text(self.settings_panel, width=12, height=9)
+        self.info_input.insert(tk.END, "" if state[3] is None else state[3])
+        self.info_input.pack(pady=3, fill=tk.X)
+        
+        set_info_button = tk.Button(self.settings_panel, text="Set Info", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_info(row, col))
+        set_info_button.pack(pady=3)
 
         delete_button = tk.Button(self.settings_panel, text="Delete marker", bg="lightgrey", activebackground="lightgrey", fg="red", command= lambda: self.delete_marker(row, col))
         delete_button.pack(pady=3)
 
     def create_marker(self, row, col):
-        self.grid_state[(row,col)] = [True, "blue", None]
+        self.grid_state[(row,col)] = [True, "blue", None, None]
         self.open_settings_panel(row, col)
         self.update_grid()
         
@@ -145,7 +155,7 @@ class GridMap:
     def set_visibility(self, row, col):
         state = self.grid_state.get((row,col))
         visible = True if self.color_var.get() == '1' else False
-        self.grid_state[(row, col)] = [visible, state[1], state[2]]
+        self.grid_state[(row, col)] = [visible, state[1], state[2], state[3]]
         self.update_grid()
     
     def set_color(self, row, col):
@@ -155,7 +165,7 @@ class GridMap:
             initialcolor=state[1],
             parent=self.root
         )
-        self.grid_state[(row, col)] = [state[0], choosecolor[1], state[2]]
+        self.grid_state[(row, col)] = [state[0], choosecolor[1], state[2], state[3]]
         self.open_settings_panel(row,col)
         self.update_grid()
     
@@ -163,37 +173,43 @@ class GridMap:
         state = self.grid_state.get((row,col))
         name = self.name_var.get()
         if state:
-            self.grid_state[(row, col)] = [state[0], state[1], name]
+            self.grid_state[(row, col)] = [state[0], state[1], name, state[3]]
             self.open_settings_panel(row, col)
             self.update_grid()
+    
+    def set_info(self, row, col):
+        state = self.grid_state.get((row,col))
+        info = self.info_input.get("1.0", tk.END).strip()
+        self.grid_state[(row, col)] = [state[0], state[1], state[2], info]
+        self.open_settings_panel(row, col)
 
     def on_zoom(self, event):
-        pos = self.getCenterOfWindow(self.recounting_warn)
-        self.recounting_warn.place(x=pos[0], y=10)
+        # pos = self.getCenterOfWindow(self.recounting_warn)
+        # self.recounting_warn.place(x=pos[0], y=10)
         if event.delta > 0:
             if self.zoom_level < 10:
                 self.zoom_level *= 1.1
-                # self.offset_x -= (event.x - (self.scr_width // 2)) * self.zoom_level / 10
-                # self.offset_y -= (event.y - (self.scr_height // 2)) * self.zoom_level / 10
+                self.offset_x -= (event.x - (self.scr_width // 2)) * self.zoom_level / 10
+                self.offset_y -= (event.y - (self.scr_height // 2)) * self.zoom_level / 10
             else:
-                self.recounting_warn.place_forget() 
+                # self.recounting_warn.place_forget() 
                 return
         else:
             if self.zoom_level > 1.1:
                 self.zoom_level /= 1.1
-                # self.offset_x -= (event.x - (self.scr_width // 2)) / 10
-                # self.offset_y -= (event.y - (self.scr_height // 2)) / 10
+                self.offset_x -= (event.x - (self.scr_width // 2)) / 10
+                self.offset_y -= (event.y - (self.scr_height // 2)) / 10
             else:
-                self.recounting_warn.place_forget() 
+                # self.recounting_warn.place_forget() 
                 return
 
         self.update_grid()
-        self.root.after(100, self.update_background_image)
+        self.root.after(1, self.update_background_image)
         
     def update_background_image(self):
         self.background_image = ImageTk.PhotoImage(self.shape_image.resize((int(self.cols * 10.005 * self.zoom_level), int(self.rows * 10.005 * self.zoom_level))))
         self.update_grid()
-        self.recounting_warn.place_forget()
+        # self.recounting_warn.place_forget()
 
     def on_key_press(self, event):
         self.pressed_keys.add(event.keysym)
@@ -235,14 +251,14 @@ class GridMap:
         for x1, y1, x2, y2, data, row, col in items:
             rect = self.canvas.create_rectangle(x1, y1, x2, y2, outline="gray")
             if not data is None:
-                pinned, color, name = data
+                pinned, color, name, info = data
                 if not pinned: continue
                 self.canvas.create_oval(x1+1, y1+1, x2-1, y2-1, fill=color, width=0)
                 self.scaled_off = (10 * self.zoom_level / 5)
                 self.canvas.create_oval(x1+self.scaled_off, y1+self.scaled_off, x2-self.scaled_off, y2-self.scaled_off, fill=color, width=(5 * self.zoom_level / 5), outline="white")
                 if not name is None:
                     names.append([x1,x2,y1,y2,name])
-                self.grid_state[(row,col)] = [pinned, color, name]
+                self.grid_state[(row,col)] = [pinned, color, name, info]
             self.grid[(row, col)] = rect
         
         for name in names:
