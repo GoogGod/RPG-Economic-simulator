@@ -8,7 +8,7 @@ class GridMap:
     def __init__(self, root : tk.Tk):
         self.root = root
         self.root.title("2D Grid Map")
-        self.quality = 1
+        self.quality = 10
         
         self.scr_width = self.root.winfo_screenwidth()
         self.scr_height = self.root.winfo_screenheight()
@@ -28,7 +28,7 @@ class GridMap:
         self.grid_state = {}
         self.zoom_level = 5
         
-        self.shape_image = Image.open("bg.png")
+        self.shape_image = Image.open("images/map.png")
 
         self.canvas.bind("<Button-3>", self.on_click)
         self.canvas.bind("<MouseWheel>", self.on_zoom)
@@ -213,7 +213,7 @@ class GridMap:
                 # self.recounting_warn.place_forget() 
                 return
         else:
-            if self.zoom_level > 1.1:
+            if self.zoom_level > 0:
                 self.zoom_level /= 1.1
                 self.offset_x -= (event.x - (self.scr_width // 2)) / 10
                 self.offset_y -= (event.y - (self.scr_height // 2)) / 10
@@ -341,10 +341,10 @@ def main():
     root.attributes("-fullscreen", True)
     grid_map = GridMap(root)
 
-    close_image = PhotoImage(file="close.png").subsample(10, 10)
-    equalizer_image = PhotoImage(file="equalizer.png").subsample(10, 10)
-    save_image = PhotoImage(file="save.png").subsample(10, 10)
-    import_image = PhotoImage(file="import.png").subsample(10, 10)
+    close_image = PhotoImage(file="images/GUI/close.png").subsample(10, 10)
+    equalizer_image = PhotoImage(file="images/GUI/equalizer.png").subsample(10, 10)
+    save_image = PhotoImage(file="images/GUI/save.png").subsample(10, 10)
+    import_image = PhotoImage(file="images/GUI/import.png").subsample(10, 10)
 
     # Create a new panel at the bottom of the window
     bottom_panel = tk.Frame(root, bg="lightgrey", height=60)
