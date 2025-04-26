@@ -32,13 +32,324 @@ class GridMap:
 
         self.canvas.bind("<Button-3>", self.on_click)
         self.canvas.bind("<MouseWheel>", self.on_zoom)
-        self.root.bind("<KeyPress>", self.on_key_press)
-        self.root.bind("<KeyRelease>", self.on_key_release)
+        self.canvas.bind("<ButtonPress-2>", self.on_middle_button_press)
+        self.canvas.bind("<B2-Motion>", self.on_middle_button_drag)
+        self.canvas.bind("<ButtonRelease-2>", self.on_middle_button_release)
 
         self.offset_x = 0
         self.offset_y = 0
-        self.step = 10
-        self.pressed_keys = set()
+
+        self.settings_panel_visible = False
+        self.create_settings_panel()
+        
+        self.fps_counter = tk.Label(self.root, text="FPS: 0", bg="white")
+        self.fps_counter.place(x=10, y=10)
+        
+        self.drawing_squares = tk.Label(self.root, text="Drawing: 0", bg="white")
+        self.drawing_squares.place(x=10, y=30)
+        
+        # self.fps_warn = tk.Label(self.root, anchor=tk.CENTER, text="Low performance detected!", fg='red', bg='white', font=font.Font(family='Arial', size=18))
+        # self.recounting_warn = tk.Label(self.root, anchor=tk.CENTER, text="Recounting map", fg='yellow', bg='white', font="Arial 18")
+        
+        self.background_image = ImageTk.PhotoImage(self.shape_image.resize((int(self.cols * 10.005 * self.zoom_level), int(self.rows * 10.005 * self.zoom_level))))
+        self.update_grid()
+
+    def create_settings_panel(self):
+        self.settings_panel = tk.Frame(self.root, bg="lightgray", width=200, height=600)
+        self.settings_panel.place(x=1800, y=0)
+        
+        coord_label = tk.Label(self.settings_panel, text=f"Coordinates: (None)", bg="lightgray")
+        coord_label.pack(pady=3)
+        
+        label = tk.Label(self.settings_panel, text="Settings", bg="lightgray")
+        label.pack(pady=10)
+
+        self.settings_panel.place_forget()
+        
+    def toggle_settings_panel(self):
+        if self.settings_panel_visible:
+            self.settings_panel.place_forget()
+        else:
+            self.settings_panel.place(x=1800, y=0)
+        self.settings_panel_visible = not self.settings_panel_visible
+
+    def on_click(self, event):
+        x, y = event.x, event.y
+        row = int((y - self.offset_y) // (self.grid_size * self.zoom_level))
+        col = int((x - self.offset_x) // (self.grid_size * self.zoom_level))
+        if (row, col) in self.grid:
+            self.open_settings_panel(row, col)
+
+    def open_settings_panel(self, row, col):
+        self.settings_panel.place(x=1800, y=0)
+        self.settings_panel_visible = True
+
+        # Clear previous widgets
+        for widget in self.settings_panel.winfo_children():
+            widget.destroy()
+
+        # Add coordinate information
+        coord_label = tk.Label(self.settings_panel, text=f"Coordinates: ({row}, {col})", bg="lightgray")
+        coord_label.pack(pady=3)
+
+        # Add color selection widgets
+        color_label = tk.Label(self.settings_panel, text="Settings", bg="lightgray")
+        color_label.pack(pady=3)
+
+        state = self.grid_state.get((row,col))
+
+        if state is None:
+            create_button = tk.Button(self.settings_panel, text="Create marker", bg="lightgrey", fg='green', activebackground="lightgrey", command= lambda: self.create_marker(row, col))
+            create_button.pack(pady=3)
+            return
+
+        self.color_var = tk.StringVar(value=state[0])
+
+        visible = tk.Checkbutton(self.settings_panel, text="Visible", variable=self.color_var, bg="lightgray", command=lambda: self.set_visibility(row, col))
+        visible.pack(anchor="w")
+
+        color_frame = tk.Frame(self.settings_panel, bg="lightgray")
+        color_frame.pack(pady=3)
+
+        choose_color_button = tk.Button(color_frame, text="Choose color", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_color(row, col))
+        choose_color_button.pack(side=tk.LEFT, padx=3)
+
+        color_preview = tk.Label(color_frame, bg=state[1], width=2, height=1)
+        color_preview.pack(side=tk.LEFT, padx=3)
+
+        # Add name input field
+        name_label = tk.Label(self.settings_panel, text="Name", bg="lightgray")
+        name_label.pack(pady=3)
+
+        self.name_var = tk.StringVar(value=state[2] if state else "")
+        name_input = tk.Entry(self.settings_panel, textvariable=self.name_var)
+        name_input.pack(pady=3, fill=tk.X)
+
+        set_name_button = tk.Button(self.settings_panel, text="Set Name", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_name(row, col))
+        set_name_button.pack(pady=3)
+        
+        info_label = tk.Label(self.settings_panel, text="Information", bg="lightgray")
+        info_label.pack(pady=3)
+        
+        self.info_input = tk.Text(self.settings_panel, width=12, height=9)
+        self.info_input.insert(tk.END, "" if state[3] is None else state[3])
+        self.info_input.pack(pady=3, fill=tk.X)
+        
+        set_info_button = tk.Button(self.settings_panel, text="Set Info", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_info(row, col))
+        set_info_button.pack(pady=3)
+
+        delete_button = tk.Button(self.settings_panel, text="Delete marker", bg="lightgrey", activebackground="lightgrey", fg="red", command= lambda: self.delete_marker(row, col))
+        delete_button.pack(pady=3)
+
+    def create_marker(self, row, col):
+        self.grid_state[(row,col)] = [True, "blue", None, None]
+        self.open_settings_panel(row, col)
+        self.update_grid()
+        
+    def delete_marker(self, row, col):
+        self.grid_state.pop((row,col))
+        self.open_settings_panel(row, col)
+        self.update_grid()
+    
+    def set_visibility(self, row, col):
+        state = self.grid_state.get((row,col))
+        visible = True if self.color_var.get() == '1' else False
+        self.grid_state[(row, col)] = [visible, state[1], state[2], state[3]]
+        self.update_grid()
+    
+    def set_color(self, row, col):
+        state = self.grid_state.get((row,col))
+        choosecolor = colorchooser.askcolor(
+            title="Choose Background Color",
+            initialcolor=state[1],
+            parent=self.root
+        )
+        self.grid_state[(row, col)] = [state[0], choosecolor[1], state[2], state[3]]
+        self.open_settings_panel(row,col)
+        self.update_grid()
+    
+    def set_name(self, row, col):
+        state = self.grid_state.get((row,col))
+        name = self.name_var.get()
+        if state:
+            self.grid_state[(row, col)] = [state[0], state[1], name, state[3]]
+            self.open_settings_panel(row, col)
+            self.update_grid()
+    
+    def set_info(self, row, col):
+        state = self.grid_state.get((row,col))
+        info = self.info_input.get("1.0", tk.END).strip()
+        self.grid_state[(row, col)] = [state[0], state[1], state[2], info]
+        self.open_settings_panel(row, col)
+
+    def on_middle_button_press(self, event):
+        self.middle_button_pressed = True
+        self.middle_button_start_x = event.x
+        self.middle_button_start_y = event.y
+
+    def on_middle_button_drag(self, event):
+        if self.middle_button_pressed:
+            delta_x = event.x - self.middle_button_start_x
+            delta_y = event.y - self.middle_button_start_y
+            self.offset_x += delta_x
+            self.offset_y += delta_y
+            self.middle_button_start_x = event.x
+            self.middle_button_start_y = event.y
+            self.update_grid()
+
+    def on_middle_button_release(self, event):
+        self.middle_button_pressed = False
+
+    def on_zoom(self, event):
+
+        self.offset_x = 0
+        self.offset_y = 0
+
+        self.settings_panel_visible = False
+        self.create_settings_panel()
+        
+        self.fps_counter = tk.Label(self.root, text="FPS: 0", bg="white")
+        self.fps_counter.place(x=10, y=10)
+        
+        self.drawing_squares = tk.Label(self.root, text="Drawing: 0", bg="white")
+        self.drawing_squares.place(x=10, y=30)
+        
+        # self.fps_warn = tk.Label(self.root, anchor=tk.CENTER, text="Low performance detected!", fg='red', bg='white', font=font.Font(family='Arial', size=18))
+        # self.recounting_warn = tk.Label(self.root, anchor=tk.CENTER, text="Recounting map", fg='yellow', bg='white', font="Arial 18")
+        
+        self.background_image = ImageTk.PhotoImage(self.shape_image.resize((int(self.cols * 10.005 * self.zoom_level), int(self.rows * 10.005 * self.zoom_level))))
+        self.update_grid()
+
+    def create_settings_panel(self):
+        self.settings_panel = tk.Frame(self.root, bg="lightgray", width=200, height=600)
+        self.settings_panel.place(x=1800, y=0)
+        
+        coord_label = tk.Label(self.settings_panel, text=f"Coordinates: (None)", bg="lightgray")
+        coord_label.pack(pady=3)
+        
+        label = tk.Label(self.settings_panel, text="Settings", bg="lightgray")
+        label.pack(pady=10)
+
+        self.settings_panel.place_forget()
+        
+    def toggle_settings_panel(self):
+        if self.settings_panel_visible:
+            self.settings_panel.place_forget()
+        else:
+            self.settings_panel.place(x=1800, y=0)
+        self.settings_panel_visible = not self.settings_panel_visible
+
+    def on_click(self, event):
+        x, y = event.x, event.y
+        row = int((y - self.offset_y) // (self.grid_size * self.zoom_level))
+        col = int((x - self.offset_x) // (self.grid_size * self.zoom_level))
+        if (row, col) in self.grid:
+            self.open_settings_panel(row, col)
+
+    def open_settings_panel(self, row, col):
+        self.settings_panel.place(x=1800, y=0)
+        self.settings_panel_visible = True
+
+        # Clear previous widgets
+        for widget in self.settings_panel.winfo_children():
+            widget.destroy()
+
+        # Add coordinate information
+        coord_label = tk.Label(self.settings_panel, text=f"Coordinates: ({row}, {col})", bg="lightgray")
+        coord_label.pack(pady=3)
+
+        # Add color selection widgets
+        color_label = tk.Label(self.settings_panel, text="Settings", bg="lightgray")
+        color_label.pack(pady=3)
+
+        state = self.grid_state.get((row,col))
+
+        if state is None:
+            create_button = tk.Button(self.settings_panel, text="Create marker", bg="lightgrey", fg='green', activebackground="lightgrey", command= lambda: self.create_marker(row, col))
+            create_button.pack(pady=3)
+            return
+
+        self.color_var = tk.StringVar(value=state[0])
+
+        visible = tk.Checkbutton(self.settings_panel, text="Visible", variable=self.color_var, bg="lightgray", command=lambda: self.set_visibility(row, col))
+        visible.pack(anchor="w")
+
+        color_frame = tk.Frame(self.settings_panel, bg="lightgray")
+        color_frame.pack(pady=3)
+
+        choose_color_button = tk.Button(color_frame, text="Choose color", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_color(row, col))
+        choose_color_button.pack(side=tk.LEFT, padx=3)
+
+        color_preview = tk.Label(color_frame, bg=state[1], width=2, height=1)
+        color_preview.pack(side=tk.LEFT, padx=3)
+
+        # Add name input field
+        name_label = tk.Label(self.settings_panel, text="Name", bg="lightgray")
+        name_label.pack(pady=3)
+
+        self.name_var = tk.StringVar(value=state[2] if state else "")
+        name_input = tk.Entry(self.settings_panel, textvariable=self.name_var)
+        name_input.pack(pady=3, fill=tk.X)
+
+        set_name_button = tk.Button(self.settings_panel, text="Set Name", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_name(row, col))
+        set_name_button.pack(pady=3)
+        
+        info_label = tk.Label(self.settings_panel, text="Information", bg="lightgray")
+        info_label.pack(pady=3)
+        
+        self.info_input = tk.Text(self.settings_panel, width=12, height=9)
+        self.info_input.insert(tk.END, "" if state[3] is None else state[3])
+        self.info_input.pack(pady=3, fill=tk.X)
+        
+        set_info_button = tk.Button(self.settings_panel, text="Set Info", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_info(row, col))
+        set_info_button.pack(pady=3)
+
+        delete_button = tk.Button(self.settings_panel, text="Delete marker", bg="lightgrey", activebackground="lightgrey", fg="red", command= lambda: self.delete_marker(row, col))
+        delete_button.pack(pady=3)
+
+    def create_marker(self, row, col):
+        self.grid_state[(row,col)] = [True, "blue", None, None]
+        self.open_settings_panel(row, col)
+        self.update_grid()
+        
+    def delete_marker(self, row, col):
+        self.grid_state.pop((row,col))
+        self.open_settings_panel(row, col)
+        self.update_grid()
+    
+    def set_visibility(self, row, col):
+        state = self.grid_state.get((row,col))
+        visible = True if self.color_var.get() == '1' else False
+        self.grid_state[(row, col)] = [visible, state[1], state[2], state[3]]
+        self.update_grid()
+    
+    def set_color(self, row, col):
+        state = self.grid_state.get((row,col))
+        choosecolor = colorchooser.askcolor(
+            title="Choose Background Color",
+            initialcolor=state[1],
+            parent=self.root
+        )
+        self.grid_state[(row, col)] = [state[0], choosecolor[1], state[2], state[3]]
+        self.open_settings_panel(row,col)
+        self.update_grid()
+    
+    def set_name(self, row, col):
+        state = self.grid_state.get((row,col))
+        name = self.name_var.get()
+        if state:
+            self.grid_state[(row, col)] = [state[0], state[1], name, state[3]]
+            self.open_settings_panel(row, col)
+            self.update_grid()
+    
+    def set_info(self, row, col):
+        state = self.grid_state.get((row,col))
+        info = self.info_input.get("1.0", tk.END).strip()
+        self.grid_state[(row, col)] = [state[0], state[1], state[2], info]
+        self.open_settings_panel(row, col)
+
+        self.offset_x = 0
+        self.offset_y = 0
 
         self.settings_panel_visible = False
         self.create_settings_panel()
@@ -211,29 +522,12 @@ class GridMap:
         self.update_grid()
         # self.recounting_warn.place_forget()
 
-    def on_key_press(self, event):
-        self.pressed_keys.add(event.keysym)
-        self.update_grid()
-
-    def on_key_release(self, event):
-        self.pressed_keys.discard(event.keysym)
-        self.update_grid()
-
     def update_grid(self):
         start = time()
         # Only update the visible portion of the grid
         visible_rows = range(max(0, int(-self.offset_y // (self.grid_size * self.zoom_level))), min(self.rows, int((self.scr_height - self.offset_y) // (self.grid_size * self.zoom_level))))
         visible_cols = range(max(0, int(-self.offset_x // (self.grid_size * self.zoom_level))), min(self.cols, int((self.scr_width - self.offset_x) // (self.grid_size * self.zoom_level))))
 
-        # Update offsets based on pressed keys
-        if "Up" in self.pressed_keys or "w" in self.pressed_keys:
-            self.offset_y += self.step
-        if "Down" in self.pressed_keys or "s" in self.pressed_keys:
-            self.offset_y -= self.step
-        if "Left" in self.pressed_keys or "a" in self.pressed_keys:
-            self.offset_x += self.step
-        if "Right" in self.pressed_keys or "d" in self.pressed_keys:
-            self.offset_x -= self.step
         # 48 * 108 / 27 * 108 (MIN ZOOM = 11x11 (10.71)  |||  MAX ZOOM = 108x108 (1.08)) 
         self.canvas.delete("all")
         self.canvas.create_image((self.offset_x + self.background_image.width() / 2), (self.offset_y + self.background_image.height() / 2), image=self.background_image)
