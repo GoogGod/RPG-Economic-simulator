@@ -8,7 +8,7 @@ class GridMap:
     def __init__(self, root : tk.Tk):
         self.root = root
         self.root.title("2D Grid Map")
-        self.quality = 10
+        self.quality = 2
         
         self.scr_width = self.root.winfo_screenwidth()
         self.scr_height = self.root.winfo_screenheight()
