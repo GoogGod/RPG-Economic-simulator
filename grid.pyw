@@ -1,6 +1,7 @@
 import tkinter as tk
-from tkinter import PhotoImage, colorchooser
+from tkinter import PhotoImage, colorchooser, font
 from PIL import Image, ImageTk
+from math import cos, sin, radians
 from time import time
 import json
 
@@ -24,7 +25,7 @@ class GridMap:
         self.rows = 27 * self.quality
         self.cols = 48 * self.quality
         
-        # self.grid_state = {(x,y) : [visible, color, name, info]}
+        # self.grid_state = {(x,y) : [visible, color, name, infobox]}
         self.grid_state = {}
         self.zoom_level = 5
         
@@ -73,13 +74,13 @@ class GridMap:
         self.middle_button_pressed = False
 
     def create_settings_panel(self):
-        self.settings_panel = tk.Frame(self.root, bg="lightgray", width=200, height=600)
-        self.settings_panel.place(x=1800, y=0)
+        self.settings_panel = tk.Frame(self.root, bg="lightgray", width=350, height=600)
+        self.settings_panel.place(x=1650, y=0)
         
-        coord_label = tk.Label(self.settings_panel, text=f"Coordinates: (None)", bg="lightgray")
+        coord_label = tk.Label(self.settings_panel, text=f"Coordinates: (None)", bg="lightgray", font="System 15")
         coord_label.pack(pady=3)
         
-        label = tk.Label(self.settings_panel, text="Settings", bg="lightgray")
+        label = tk.Label(self.settings_panel, text="Settings", bg="lightgray", font="System 11")
         label.pack(pady=10)
 
         self.settings_panel.place_forget()
@@ -88,7 +89,7 @@ class GridMap:
         if self.settings_panel_visible:
             self.settings_panel.place_forget()
         else:
-            self.settings_panel.place(x=1800, y=0)
+            self.settings_panel.place(x=1650, y=0)
         self.settings_panel_visible = not self.settings_panel_visible
 
     def on_click(self, event):
@@ -99,7 +100,7 @@ class GridMap:
             self.open_settings_panel(row, col)
 
     def open_settings_panel(self, row, col):
-        self.settings_panel.place(x=1800, y=0)
+        self.settings_panel.place(x=1650, y=0)
         self.settings_panel_visible = True
 
         # Clear previous widgets
@@ -107,57 +108,57 @@ class GridMap:
             widget.destroy()
 
         # Add coordinate information
-        coord_label = tk.Label(self.settings_panel, text=f"Coordinates: ({row}, {col})", bg="lightgray")
+        coord_label = tk.Label(self.settings_panel, text=f"Coordinates: ({row}, {col})", bg="lightgray", font="System 15")
         coord_label.pack(pady=3)
 
         # Add color selection widgets
-        color_label = tk.Label(self.settings_panel, text="Settings", bg="lightgray")
+        color_label = tk.Label(self.settings_panel, text="Settings", bg="lightgray", font="System 11")
         color_label.pack(pady=3)
 
         state = self.grid_state.get((row,col))
 
         if state is None:
-            create_button = tk.Button(self.settings_panel, text="Create marker", bg="lightgrey", fg='green', activebackground="lightgrey", command= lambda: self.create_marker(row, col))
+            create_button = tk.Button(self.settings_panel, text="Create marker", bg="lightgrey", fg='green', activebackground="lightgrey", command= lambda: self.create_marker(row, col), font="System 11")
             create_button.pack(pady=3)
             return
 
         self.color_var = tk.StringVar(value=state[0])
 
-        visible = tk.Checkbutton(self.settings_panel, text="Visible", variable=self.color_var, bg="lightgray", command=lambda: self.set_visibility(row, col))
+        visible = tk.Checkbutton(self.settings_panel, text="Visible", variable=self.color_var, bg="lightgray", command=lambda: self.set_visibility(row, col), font="System 13")
         visible.pack(anchor="w")
 
         color_frame = tk.Frame(self.settings_panel, bg="lightgray")
         color_frame.pack(pady=3)
 
-        choose_color_button = tk.Button(color_frame, text="Choose color", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_color(row, col))
+        choose_color_button = tk.Button(color_frame, text="Choose color", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_color(row, col) , font="System 11")
         choose_color_button.pack(side=tk.LEFT, padx=3)
 
-        color_preview = tk.Label(color_frame, bg=state[1], width=2, height=1)
+        color_preview = tk.Label(color_frame, bg=state[1], width=4, height=2, bd=1)
         color_preview.pack(side=tk.LEFT, padx=3)
 
         # Add name input field
-        name_label = tk.Label(self.settings_panel, text="Name", bg="lightgray")
+        name_label = tk.Label(self.settings_panel, text="Name", bg="lightgray", font="System 13")
         name_label.pack(pady=3)
 
         self.name_var = tk.StringVar(value=state[2] if state else "")
-        name_input = tk.Entry(self.settings_panel, textvariable=self.name_var)
+        name_input = tk.Entry(self.settings_panel, textvariable=self.name_var, font="System 11")
         name_input.bind('<Return>', lambda x: self.set_name(row=row, col=col))
         name_input.pack(pady=3, fill=tk.X)
 
-        set_name_button = tk.Button(self.settings_panel, text="Set Name", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_name(row, col))
+        set_name_button = tk.Button(self.settings_panel, text="Set Name", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_name(row, col), font="System 11")
         set_name_button.pack(pady=3)
         
-        info_label = tk.Label(self.settings_panel, text="Information", bg="lightgray")
+        info_label = tk.Label(self.settings_panel, text="Information", bg="lightgray", font="System 13")
         info_label.pack(pady=3)
         
-        self.info_input = tk.Text(self.settings_panel, width=12, height=9)
+        self.info_input = tk.Text(self.settings_panel, width=12, height=9, font="System 11")
         self.info_input.insert(tk.END, "" if state[3] is None else state[3])
         self.info_input.pack(pady=3, fill=tk.X)
         
-        set_info_button = tk.Button(self.settings_panel, text="Set Info", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_info(row, col))
+        set_info_button = tk.Button(self.settings_panel, text="Set Info", bg="lightgrey", activebackground="lightgrey", command=lambda: self.set_info(row, col), font="System 11")
         set_info_button.pack(pady=3)
 
-        delete_button = tk.Button(self.settings_panel, text="Delete marker", bg="lightgrey", activebackground="lightgrey", fg="red", command= lambda: self.delete_marker(row, col))
+        delete_button = tk.Button(self.settings_panel, text="Delete marker", bg="lightgrey", activebackground="lightgrey", fg="red", command= lambda: self.delete_marker(row, col), font="System 11")
         delete_button.pack(pady=3)
 
     def create_marker(self, row, col):
@@ -229,6 +230,17 @@ class GridMap:
         self.update_grid()
         # self.recounting_warn.place_forget()
 
+    def create_stroked_text(self, canvas : tk.Canvas, cords : tuple[float, float] | list[int] | list[float], text_font : str, text : float | str, stroke_color : str = "white", fill_color : str = "black", stroke_width : int = 1, anchor = "center", font_size = 12, quality = 12):
+
+        x, y = cords
+        
+        # iterates in a circle by angle and draws text
+        for angle in range(0, 360, 360//quality):
+            dx = stroke_width * cos(radians(angle))
+            dy = stroke_width * sin(radians(angle))
+            canvas.create_text(x + dx, y + dy, text=text, font=text_font, fill=stroke_color, anchor=anchor)
+        canvas.create_text(x, y, text=text, font=text_font, fill=fill_color, anchor=anchor)
+
     def update_grid(self):
         start = time()
         # Only update the visible portion of the grid
@@ -263,9 +275,9 @@ class GridMap:
             self.grid[(row, col)] = rect
         
         for name in names:
-            self.canvas.create_text(((name[0]+name[1])/2, 10 * self.zoom_level + (name[2]+name[3])/2), text=name[4], font=f"Verdana {int(6 * self.zoom_level)} normal roman", fill="black")
-        
-        
+            #self.canvas.create_text(((name[0]+name[1])/2, 10 * self.zoom_level + (name[2]+name[3])/2), text=name[4], font=f"Verdana {int(6 * self.zoom_level)} normal roman", fill="black")
+            self.create_stroked_text(self.canvas, ((name[0]+name[1])/2, 10 * self.zoom_level + (name[2]+name[3])/2), text=name[4], text_font=font.Font(family="Permanent Marker", size = int(6 * self.zoom_level), weight="bold", slant="roman"), quality=6, stroke_width=3)
+            
         self.drawing_squares.configure(text=f"Drawing: {len(items)}, {self.zoom_level}")
         
         fps = 0
@@ -283,7 +295,6 @@ class GridMap:
             # else:
             #     self.fps_warn.place_forget()
             
-
     def save_grid_state(self):
         with open("grid_state.json", "w") as f:
             save = {
@@ -309,14 +320,14 @@ class GridMap:
                     self.grid_state = grid_state
                     self.update_grid()
                     
-                    _info = tk.Label(self.root, text="Save Loaded", fg='green', font="Verdana 24 normal roman")
+                    _info = tk.Label(self.root, text="Save Loaded", fg='green', font="System 20")
                     x,y = self.getCenterOfWindow(_info)
                     _info.place(x=x, y=y)
                     self.root.update()
                     self.root.after(100, _info.destroy())
                     
                 else:
-                    _info = tk.Label(self.root, text="Size of save is bigger than size now", fg='blue', font="Verdana 24 normal roman")
+                    _info = tk.Label(self.root, text="Size of save is bigger than size now", fg='blue', font="System 20")
                     x,y = self.getCenterOfWindow(_info)
                     _info.place(x=x, y=y)
                     self.root.update()
