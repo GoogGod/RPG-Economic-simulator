@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import PhotoImage, colorchooser, font
 from PIL import Image, ImageTk
 from math import cos, sin, radians
-from time import time
+from timeit import timeit
 import json
 
 class GridMap:
@@ -214,7 +214,7 @@ class GridMap:
                 # self.recounting_warn.place_forget() 
                 return
         else:
-            if self.zoom_level > 0:
+            if self.zoom_level > 1.1:
                 self.zoom_level /= 1.1
                 self.offset_x -= (event.x - (self.scr_width // 2)) / 10
                 self.offset_y -= (event.y - (self.scr_height // 2)) / 10
@@ -242,7 +242,20 @@ class GridMap:
         canvas.create_text(x, y, text=text, font=text_font, fill=fill_color, anchor=anchor)
 
     def update_grid(self):
-        start = time()
+        fps = 0
+        original_time = timeit(lambda: self.update_INNERgrid(), number=1)
+        test = original_time
+        while not test > 1:
+            fps += 1
+            test += original_time
+        self.fps_counter.configure(text=f"FPS: {fps}")
+        self.drawing_squares.configure(text=f"Drawing: {self.num_objects}, {self.zoom_level}")
+        metric = {"fps": fps, "num_objects": self.num_objects}
+        with open("fps_metric", "a") as f:
+            json.dump(metric, f)
+            f.write("\n")
+    
+    def update_INNERgrid(self):
         # Only update the visible portion of the grid
         visible_rows = range(max(0, int(-self.offset_y // (self.grid_size * self.zoom_level))), min(self.rows, int((self.scr_height - self.offset_y) // (self.grid_size * self.zoom_level))))
         visible_cols = range(max(0, int(-self.offset_x // (self.grid_size * self.zoom_level))), min(self.cols, int((self.scr_width - self.offset_x) // (self.grid_size * self.zoom_level))))
@@ -275,26 +288,10 @@ class GridMap:
             self.grid[(row, col)] = rect
         
         for name in names:
-            #self.canvas.create_text(((name[0]+name[1])/2, 10 * self.zoom_level + (name[2]+name[3])/2), text=name[4], font=f"Verdana {int(6 * self.zoom_level)} normal roman", fill="black")
-            self.create_stroked_text(self.canvas, ((name[0]+name[1])/2, 10 * self.zoom_level + (name[2]+name[3])/2), text=name[4], text_font=font.Font(family="Permanent Marker", size = int(6 * self.zoom_level), weight="bold", slant="roman"), quality=6, stroke_width=3)
-            
-        self.drawing_squares.configure(text=f"Drawing: {len(items)}, {self.zoom_level}")
-        
-        fps = 0
-        original_time = time() - start
-        test = original_time
-        while test < 1:
-            fps += 1
-            test += original_time
-            if original_time == 0: # if error
-                break
-        if fps != 1:
-            self.fps_counter.configure(text=f"FPS: {fps}")
-            # if fps < 70:   
-            #     self.fps_warn.place(x=800, y=10)
-            # else:
-            #     self.fps_warn.place_forget()
-            
+            self.create_stroked_text(self.canvas, ((name[0]+name[1])/2, 10 * self.zoom_level + (name[2]+name[3])/2), text=name[4], text_font=font.Font(family="Permanent Marker", size = int(6 * self.zoom_level), weight="bold", slant="roman"), quality=3, stroke_width=3)
+
+        self.num_objects = len(items)
+
     def save_grid_state(self):
         with open("grid_state.json", "w") as f:
             save = {
