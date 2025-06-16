@@ -3,6 +3,7 @@ from tkinter import PhotoImage, colorchooser, font
 from PIL import Image, ImageTk
 from math import cos, sin, radians
 from timeit import timeit
+from sys import argv
 import json
 
 class GridMap:
@@ -27,11 +28,11 @@ class GridMap:
         
         # self.grid_state = {(x,y) : [visible, color, name, infobox]}
         self.grid_state = {}
-        self.zoom_level = 5
+        self.zoom_level = 2
         
         self.shape_image = Image.open("images/map.png")
 
-        self.canvas.bind("<Button-3>", self.on_click)
+        self.canvas.bind("<Button-1>", self.on_click)
         self.canvas.bind("<MouseWheel>", self.on_zoom)
         self.canvas.bind("<ButtonPress-2>", self.on_middle_button_press)
         self.canvas.bind("<B2-Motion>", self.on_middle_button_drag)
@@ -49,10 +50,15 @@ class GridMap:
         self.drawing_squares = tk.Label(self.root, text="Drawing: 0", bg="white")
         self.drawing_squares.place(x=10, y=30)
         
+        self.zoom_counter = tk.Label(self.root, text="Zoom: 0", bg="white")
+        self.zoom_counter.place(x=10, y=50)
+        
+        self.resample = Image.NEAREST if '-low' in argv else None
+        
         # self.fps_warn = tk.Label(self.root, anchor=tk.CENTER, text="Low performance detected!", fg='red', bg='white', font=font.Font(family='Arial', size=18))
         # self.recounting_warn = tk.Label(self.root, anchor=tk.CENTER, text="Recounting map", fg='yellow', bg='white', font="Arial 18")
         
-        self.background_image = ImageTk.PhotoImage(self.shape_image.resize((int(self.cols * 10.005 * self.zoom_level), int(self.rows * 10.005 * self.zoom_level))))
+        self.background_image = ImageTk.PhotoImage(self.shape_image.resize((int(self.cols * 10.005 * self.zoom_level), int(self.rows * 10.005 * self.zoom_level)), resample=self.resample))
         self.update_grid()
 
     def on_middle_button_press(self, event):
@@ -200,13 +206,12 @@ class GridMap:
         state = self.grid_state.get((row,col))
         info = self.info_input.get("1.0", tk.END).strip()
         self.grid_state[(row, col)] = [state[0], state[1], state[2], info]
-        self.open_settings_panel(row, col)
 
     def on_zoom(self, event):
         # pos = self.getCenterOfWindow(self.recounting_warn)
         # self.recounting_warn.place(x=pos[0], y=10)
         if event.delta > 0:
-            if self.zoom_level < 10:
+            if self.zoom_level < 5:
                 self.zoom_level *= 1.1
                 self.offset_x -= (event.x - (self.scr_width // 2)) * self.zoom_level / 10
                 self.offset_y -= (event.y - (self.scr_height // 2)) * self.zoom_level / 10
@@ -216,17 +221,16 @@ class GridMap:
         else:
             if self.zoom_level > 1.1:
                 self.zoom_level /= 1.1
-                self.offset_x -= (event.x - (self.scr_width // 2)) / 10
-                self.offset_y -= (event.y - (self.scr_height // 2)) / 10
+                # self.offset_x -= (event.x - (self.scr_width // 2)) / 10
+                # self.offset_y -= (event.y - (self.scr_height // 2)) / 10
             else:
                 # self.recounting_warn.place_forget() 
                 return
 
-        self.update_grid()
         self.root.after(1, self.update_background_image)
         
     def update_background_image(self):
-        self.background_image = ImageTk.PhotoImage(self.shape_image.resize((int(self.cols * 10.005 * self.zoom_level), int(self.rows * 10.005 * self.zoom_level))))
+        self.background_image = ImageTk.PhotoImage(self.shape_image.resize((int(self.cols * 10.005 * self.zoom_level), int(self.rows * 10.005 * self.zoom_level)), resample=self.resample))
         self.update_grid()
         # self.recounting_warn.place_forget()
 
@@ -249,48 +253,67 @@ class GridMap:
             fps += 1
             test += original_time
         self.fps_counter.configure(text=f"FPS: {fps}")
-        self.drawing_squares.configure(text=f"Drawing: {self.num_objects}, {self.zoom_level}")
-        metric = {"fps": fps, "num_objects": self.num_objects}
-        with open("fps_metric", "a") as f:
-            json.dump(metric, f)
-            f.write("\n")
+        self.drawing_squares.configure(text=f"Drawing: {self.num_objects}")
+        self.zoom_counter.configure(text=f"Zoom: {self.zoom_level}")
+        # metric = {"fps": fps, "num_objects": self.num_objects}
+        # with open("fps_metric", "a") as f:
+        #     json.dump(metric, f)
+        #     f.write("\n")
     
     def update_INNERgrid(self):
         # Only update the visible portion of the grid
-        visible_rows = range(max(0, int(-self.offset_y // (self.grid_size * self.zoom_level))), min(self.rows, int((self.scr_height - self.offset_y) // (self.grid_size * self.zoom_level))))
-        visible_cols = range(max(0, int(-self.offset_x // (self.grid_size * self.zoom_level))), min(self.cols, int((self.scr_width - self.offset_x) // (self.grid_size * self.zoom_level))))
-
+        visible_rows = range(max(0, int(-self.offset_y // (self.grid_size * self.zoom_level))), min(self.rows+1, int((self.scr_height - self.offset_y) // (self.grid_size * self.zoom_level))))
+        visible_cols = range(max(0, int(-self.offset_x // (self.grid_size * self.zoom_level))), min(self.cols+1, int((self.scr_width - self.offset_x) // (self.grid_size * self.zoom_level))))
         # 48 * 108 / 27 * 108 (MIN ZOOM = 11x11 (10.71)  |||  MAX ZOOM = 108x108 (1.08)) 
         self.canvas.delete("all")
-        self.canvas.create_image((self.offset_x + self.background_image.width() / 2), (self.offset_y + self.background_image.height() / 2), image=self.background_image)
+        self.canvas.create_image((self.offset_x + self.background_image.width() / 2), (self.offset_y + self.background_image.height() / 2), image=self.background_image)        
         
-        items = []
+        items = 0
         names = []
+        
+        if not self.zoom_level < 1.6:
+            
+            for row in visible_rows: # Horizontal 
+                y = row * self.grid_size * self.zoom_level + self.offset_y
+                x1 = max(0, self.offset_x)
+                x2 = min(1920, self.cols * self.grid_size * self.zoom_level + self.offset_x)
+                self.canvas.create_line(x1, y, x2, y, width=1, fill="gray")
+                items += 1
+                
+            for col in visible_cols: # Vertical
+                x = col * self.grid_size * self.zoom_level + self.offset_x
+                y1 = max(0, self.offset_y)
+                y2 = min(1080, self.rows * self.grid_size * self.zoom_level + self.offset_y)
+                self.canvas.create_line(x, y1, x, y2, width=1, fill="gray")
+                items += 1
+        
         for row in visible_rows:
             for col in visible_cols:
+                
+                data = self.grid_state.get((row,col))
+                if data is None: continue
+                
+                pinned, color, name, info = data
+                if not pinned: continue
+                
                 x1 = col * self.grid_size * self.zoom_level + self.offset_x
                 y1 = row * self.grid_size * self.zoom_level + self.offset_y
                 x2 = x1 + self.grid_size * self.zoom_level
                 y2 = y1 + self.grid_size * self.zoom_level
-                data = self.grid_state.get((row,col))
-                items.append((x1, y1, x2, y2, data, row, col))
-        for x1, y1, x2, y2, data, row, col in items:
-            rect = self.canvas.create_rectangle(x1, y1, x2, y2, outline="gray")
-            if not data is None:
-                pinned, color, name, info = data
-                if not pinned: continue
+                
+                items += 1
                 self.canvas.create_oval(x1+1, y1+1, x2-1, y2-1, fill=color, width=0)
                 self.scaled_off = (10 * self.zoom_level / 5)
                 self.canvas.create_oval(x1+self.scaled_off, y1+self.scaled_off, x2-self.scaled_off, y2-self.scaled_off, fill=color, width=(5 * self.zoom_level / 5), outline="white")
+
                 if not name is None:
+                    items += 1
                     names.append([x1,x2,y1,y2,name])
-                self.grid_state[(row,col)] = [pinned, color, name, info]
-            self.grid[(row, col)] = rect
-        
+                
         for name in names:
             self.create_stroked_text(self.canvas, ((name[0]+name[1])/2, 10 * self.zoom_level + (name[2]+name[3])/2), text=name[4], text_font=font.Font(family="Permanent Marker", size = int(6 * self.zoom_level), weight="bold", slant="roman"), quality=3, stroke_width=3)
 
-        self.num_objects = len(items)
+        self.num_objects = items
 
     def save_grid_state(self):
         with open("grid_state.json", "w") as f:
@@ -347,6 +370,7 @@ class GridMap:
 def main():
     root = tk.Tk()
     root.attributes("-fullscreen", True)
+    root.iconphoto(True, PhotoImage(file="images/GUI/icon.png"))
     grid_map = GridMap(root)
 
     close_image = PhotoImage(file="images/GUI/close.png").subsample(10, 10)
