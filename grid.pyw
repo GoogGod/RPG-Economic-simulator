@@ -102,7 +102,7 @@ class GridMap:
         x, y = event.x, event.y
         row = int((y - self.offset_y) // (self.grid_size * self.zoom_level))
         col = int((x - self.offset_x) // (self.grid_size * self.zoom_level))
-        if (row, col) in self.grid:
+        if 0 <= row <= self.rows and 0 <= col <= self.cols:
             self.open_settings_panel(row, col)
 
     def open_settings_panel(self, row, col):
